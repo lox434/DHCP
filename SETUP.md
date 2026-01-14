@@ -326,6 +326,37 @@ ssh srv
 ```
 
 ---
+### 8.3 ISP + SRV: настроить sshd (порты + только ключи)
+
+На **ISP** и **SRV** отредактируйте файл `/etc/openssh/sshd_config`:
+
+- На **ISP** выставьте порт **2222**
+- На **SRV** выставьте порт **2223**
+- Включите **PubkeyAuthentication yes**
+- Отключите **PasswordAuthentication no**
+
+Пример (фрагмент):
+
+```conf
+# ISP: Port 2222
+# SRV: Port 2223
+Port <PORT>
+
+PubkeyAuthentication yes
+PasswordAuthentication no
+```
+
+Применить изменения:
+
+```bash
+systemctl restart sshd
+systemctl status sshd --no-pager
+```
+
+> После отключения паролей убедитесь, что вы уже добавили публичный ключ на сервер (`ssh-copy-id`), иначе можете потерять доступ.
+
+---
+
 
 ## 9) Samba AD DC на SRV: домен `ilove.sa` + пользователи `ssa1/ssa2/ssa3` + группа `ssa_group` + вход на CLI
 
