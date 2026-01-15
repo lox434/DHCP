@@ -122,7 +122,7 @@ setup_ad_client_prep() {
   cat > "/etc/sudoers.d/${group}" <<EOF
 Cmnd_Alias POWER = /sbin/shutdown, /sbin/reboot, /usr/sbin/shutdown, /usr/sbin/reboot
 Cmnd_Alias HTOP  = /usr/bin/htop
-%${group}@${realm} ALL=(root) NOPASSWD: POWER, HTOP
+%${group} ALL=(root) NOPASSWD: POWER, HTOP
 EOF
   chmod 0400 "/etc/sudoers.d/${group}"
   visudo -c || true
