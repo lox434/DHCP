@@ -130,6 +130,7 @@ EOF
   echo "После входа доменным пользователем: sudo -l ; sudo htop"
 }
 
+
 main() {
   need_root
   fix_sudoers_permissions
