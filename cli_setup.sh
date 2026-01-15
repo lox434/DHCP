@@ -6,6 +6,14 @@ set -euo pipefail
 
 need_root() { [[ $EUID -eq 0 ]] || { echo "Run as root"; exit 1; }; }
 
+fix_sudoers_permissions() {
+  local f="/etc/sudoers.d/99-sudopw"
+  if [[ -e "$f" ]]; then
+    chown root:root "$f" || true
+    chmod 0400 "$f" || true
+  fi
+}
+
 ask() {
   local prompt="$1" default="${2:-}"
   local var
@@ -124,18 +132,20 @@ EOF
 
 main() {
   need_root
+  fix_sudoers_permissions
   echo "=== CLI setup ==="
 
   local variant lan_if srv_ip isp_ip mount_point do_ssh isp_port srv_port do_keys export_dir
   local do_ad realm group do_realm_join
 
   variant="$(ask "Variant (совпадает с SRV для /mnt/raid_<variant>)" "ssa")"
+  variant_num="$(echo "$variant" | tr -cd '0-9')"
   lan_if="$(ask "LAN интерфейс (DHCP)" "ens18")"
   isp_ip="$(ask "IP ISP в LAN" "10.0.128.1")"
   srv_ip="$(ask "IP SRV в LAN" "10.0.128.2")"
 
   mount_point="$(ask "Куда монтировать NFS" "/share")"
-  export_dir="/mnt/raid_${variant}"
+  export_dir="/mnt/raid_${variant_num}"
 
   isp_port="$(ask "SSH port ISP" "2222")"
   srv_port="$(ask "SSH port SRV" "2223")"

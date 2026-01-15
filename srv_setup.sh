@@ -6,6 +6,14 @@ set -euo pipefail
 
 need_root() { [[ $EUID -eq 0 ]] || { echo "Run as root"; exit 1; }; }
 
+fix_sudoers_permissions() {
+  local f="/etc/sudoers.d/99-sudopw"
+  if [[ -e "$f" ]]; then
+    chown root:root "$f" || true
+    chmod 0400 "$f" || true
+  fi
+}
+
 ask() {
   local prompt="$1" default="${2:-}"
   local var
@@ -163,12 +171,14 @@ setup_samba_ad_dc() {
 
 main() {
   need_root
+  fix_sudoers_permissions
   echo "=== SRV setup ==="
 
   local variant lan_if ssh_port do_user raid_level do_raid net_cidr mount_dir
   local do_samba realm workgroup adminpass dns_forwarder dc_hostname
 
   variant="$(ask "Variant (используется в именах, напр. ssa)" "ssa")"
+  variant_num="$(echo "$variant" | tr -cd '0-9')"
   lan_if="$(ask "LAN интерфейс (получает IP по DHCP от ISP)" "ens18")"
   net_cidr="$(ask "Подсеть LAN (для exports/NFS и др.)" "10.0.128.0/24")"
 
@@ -177,7 +187,7 @@ main() {
 
   do_raid="$(ask "Настраивать RAID+FS+NFS? (y/n)" "y")"
   raid_level="$(ask "Какой RAID? (0/1/5)" "5")"
-  mount_dir="/mnt/raid_${variant}"
+  mount_dir="/mnt/raid_${variant_num}"
 
   do_samba="$(ask "Поднимать Samba AD DC на SRV? (y/n)" "n")"
   realm="$(ask "Samba realm (FQDN), например ${variant}.sa" "${variant}.sa")"
