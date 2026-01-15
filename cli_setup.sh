@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# CLI setup for ALT Linux (DHCP, NFS mount, optional SSH aliases, optional AD client prep)
+# v2: adds AD client prep + sudoers for domain group (from guide)
+
 need_root() { [[ $EUID -eq 0 ]] || { echo "Run as root"; exit 1; }; }
 
 ask() {
@@ -76,27 +79,75 @@ EOF
   echo "Проверка: ssh ISP ; ssh srv"
 }
 
+setup_ad_client_prep() {
+  local lan_if="$1" srv_ip="$2" realm="$3" group="$4"
+  local do_realm_join="$5"
+
+  # From guide: remove alterator-datetime + install task-auth-ad-sssd
+  apt-get remove -y alterator-datetime 2>/dev/null || true
+  apt-get install -y task-auth-ad-sssd
+
+  mkdir -p "/etc/net/ifaces/$lan_if"
+  {
+    echo "nameserver $srv_ip"
+    echo "search $realm"
+  } > "/etc/net/ifaces/$lan_if/resolv.conf"
+
+  systemctl restart network || true
+
+  echo "DNS проверка:"
+  host "$realm" || true
+
+  if [[ "$do_realm_join" == "y" ]]; then
+    if command -v realm >/dev/null 2>&1; then
+      echo "Попробуем realm discover / realm join (может попросить пароль administrator):"
+      realm discover "$realm" || true
+      realm join "$realm" -U administrator || true
+    else
+      echo "Команды realm нет в системе. По гайду можно присоединиться через GUI (System Management Center)."
+    fi
+  else
+    echo "Присоединение к домену пропущено. По гайду можно через GUI: SMC -> Authentication -> AD."
+  fi
+
+  # Sudo restrictions for domain group (from guide)
+  cat > "/etc/sudoers.d/${group}" <<EOF
+Cmnd_Alias POWER = /sbin/shutdown, /sbin/reboot, /usr/sbin/shutdown, /usr/sbin/reboot
+Cmnd_Alias HTOP  = /usr/bin/htop
+%${group}@${realm} ALL=(root) NOPASSWD: POWER, HTOP
+EOF
+  chmod 0400 "/etc/sudoers.d/${group}"
+  visudo -c || true
+
+  echo "После входа доменным пользователем: sudo -l ; sudo htop"
+}
+
 main() {
   need_root
   echo "=== CLI setup ==="
 
-  local variant lan_if srv_ip isp_ip net_cidr mount_point do_ssh isp_port srv_port do_keys export_dir
+  local variant lan_if srv_ip isp_ip mount_point do_ssh isp_port srv_port do_keys export_dir
+  local do_ad realm group do_realm_join
 
-  variant="$(ask "Variant (должен совпадать с SRV, чтобы путь /mnt/raid_<variant>)" "ssa")"
+  variant="$(ask "Variant (совпадает с SRV для /mnt/raid_<variant>)" "ssa")"
   lan_if="$(ask "LAN интерфейс (DHCP)" "ens18")"
   isp_ip="$(ask "IP ISP в LAN" "10.0.128.1")"
   srv_ip="$(ask "IP SRV в LAN" "10.0.128.2")"
-  net_cidr="$(ask "Подсеть (для информации/проверок)" "10.0.128.0/24")"
 
   mount_point="$(ask "Куда монтировать NFS" "/share")"
   export_dir="/mnt/raid_${variant}"
 
-  isp_port="$(ask "SSH port ISP (как задавал на ISP)" "2222")"
-  srv_port="$(ask "SSH port SRV (как задавал на SRV)" "2223")"
+  isp_port="$(ask "SSH port ISP" "2222")"
+  srv_port="$(ask "SSH port SRV" "2223")"
 
   do_ssh="$(ask "Настроить SSH алиасы/ключи? (y/n)" "y")"
   do_keys="n"
   [[ "$do_ssh" == "y" ]] && do_keys="$(ask "Сгенерить ключ и сделать ssh-copy-id? (y/n)" "y")"
+
+  do_ad="$(ask "Подготовить CLI как клиент Samba AD? (y/n)" "n")"
+  realm="$(ask "Realm (FQDN), например ${variant}.sa" "${variant}.sa")"
+  group="$(ask "Группа домена для sudo (например ${variant}_group)" "${variant}_group")"
+  do_realm_join="$(ask "Пробовать realm join автоматически? (y/n)" "n")"
 
   hostnamectl hostname cli
 
@@ -107,6 +158,11 @@ main() {
 
   if [[ "$do_ssh" == "y" ]]; then
     setup_ssh_client_aliases "$isp_ip" "$isp_port" "$srv_ip" "$srv_port" "$do_keys"
+  fi
+
+  if [[ "$do_ad" == "y" ]]; then
+    setup_ad_client_prep "$lan_if" "$srv_ip" "$realm" "$group" "$do_realm_join"
+    echo "По гайду после настроек клиента обычно делают reboot."
   fi
 
   echo
