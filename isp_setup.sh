@@ -85,7 +85,7 @@ subnet $net netmask $mask {
   option domain-name "$domain";
   option domain-name-servers 8.8.8.8;
 
-  range $dhcp_pool_start $dhcp_pool_end;
+  range $range_start $range_end;
 }
 
 host server {
