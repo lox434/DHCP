@@ -65,20 +65,14 @@ setup_dhcp() {
 
   [[ -f /etc/dhcp/dhcp.conf.sample ]] && cp -f /etc/dhcp/dhcp.conf.sample /etc/dhcp/dhcpd.conf
 
-  local range_start="$7"
-  local range_end="$8"
-
-  # если не задали вручную — ставим дефолт
-  if [[ -z "$range_start" || -z "$range_end" ]]; then
-    if [[ "$cidr" == "24" ]]; then
-      range_start="${net%.*}.50"
-      range_end="${net%.*}.100"
-    else
-      echo "Для /$cidr нужно вручную задать DHCP пул (start/end)."
-      exit 1
-    fi
+  local range_start range_end
+  if [[ "$cidr" == "24" ]]; then
+    range_start="${net%.*}.50"
+    range_end="${net%.*}.100"
+  else
+    range_start="$router_ip"
+    range_end="$router_ip"
   fi
-
 
   cat > /etc/dhcp/dhcpd.conf <<EOF
 default-lease-time 21600;
