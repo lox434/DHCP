@@ -55,7 +55,7 @@ enable_ip_forward() {
 }
 
 setup_dhcp() {
-  local net="$1" cidr="$2" router_ip="$3" srv_mac="$4" srv_ip="$5" domain="$6" lan_if="$7" force_iface="$8"
+  local net="$1" cidr="$2" router_ip="$3" srv_mac="$4" srv_ip="$5" domain="$6" lan_if="$7" force_iface="$8" range_start="$9" range_end="${10}"
   local mask
   mask="$(mask_from_cidr "$cidr")"
   [[ -n "$mask" ]] || { echo "CIDR /$cidr not supported in this script. Use /24,/16,/8."; exit 1; }
@@ -185,7 +185,7 @@ main() {
   need_root
   echo "=== ISP setup ==="
 
-  local variant net_cidr net cidr router_ip srv_ip srv_mac lan_if wan_if ssh_port do_user domain force_dhcp_iface do_forward_allow
+  local variant net_cidr net cidr dhcp_pool_start dhcp_pool_end default_pool_start default_pool_end router_ip srv_ip srv_mac lan_if wan_if ssh_port do_user domain force_dhcp_iface do_forward_allow
 
   variant="$(ask "Variant (для domain-name/DNS, напр. ssa)" "ssa")"
   net_cidr="$(ask "Подсеть для LAN (x.y.z.0/24)" "10.0.128.0/24")"
@@ -198,6 +198,17 @@ main() {
 
   srv_ip="$(derive_srv_ip "$net" "$cidr")"
   [[ -n "$srv_ip" ]] || srv_ip="$(ask "IP SRV внутри LAN" "10.0.128.2")"
+
+  # дефолтный пул для /24
+  default_pool_start=""
+  default_pool_end=""
+  if [[ "$cidr" == "24" ]]; then
+    default_pool_start="${net%.*}.50"
+    default_pool_end="${net%.*}.100"
+  fi
+
+dhcp_pool_start="$(ask "DHCP пул START (Enter = дефолт/авто)" "$default_pool_start")"
+dhcp_pool_end="$(ask "DHCP пул END (Enter = дефолт/авто)" "$default_pool_end")"
 
   srv_mac="$(ask "MAC адрес SRV (для DHCP fixed-address)" "08:00:27:aa:bb:cc")"
 
@@ -219,7 +230,7 @@ main() {
 
   enable_ip_forward
 
-  setup_dhcp "$net" "$cidr" "$router_ip" "$srv_mac" "$srv_ip" "$domain" "$lan_if" "$force_dhcp_iface"
+  setup_dhcp "$net" "$cidr" "$router_ip" "$srv_mac" "$srv_ip" "$domain" "$lan_if" "$force_dhcp_iface" "$dhcp_pool_start" "$dhcp_pool_end"
 
   setup_nat_and_forward_rules "$lan_if" "$wan_if" "$net_cidr" "$do_forward_allow"
 
